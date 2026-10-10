@@ -2,6 +2,7 @@ module tb_riscv;
     reg clk;
     reg rst;
     integer i;
+    integer errors;
     
 
 riscv_cpu dut(
@@ -17,6 +18,8 @@ always #10 clk = ~clk;
 initial begin
     clk = 0;
     rst = 1;  
+    errors = 0;
+    
     @(posedge clk);
 
     dut.u_imem.words[0] = 32'h00500093;   // addi x1,x0,5
@@ -32,10 +35,53 @@ initial begin
     rst = 0;
 
     
-    for (i = 0; i < 8; i = i + 1) begin
-    @(posedge clk);
-    
-    $display("Cycle %0d: PC=%h, instr=%h, Branch=%b, zero=%b", i, dut.pc_current, dut.instr, dut.Branch, dut.zero);
+    for (i = 0; i < 7; i = i + 1) begin
+        @(posedge clk);
+        #1;
+
+        $display("Cycle %0d: PC=%h", i, dut.pc_current);
+
+        // Check branch: PC 20 should jump to PC 28
+        if (i == 5) begin
+            if (dut.pc_current !== 32'd28) begin
+                $display("[FAIL] BEQ branch incorrect");
+                errors = errors + 1;
+            end else begin
+                $display("[PASS] BEQ branch taken correctly");
+            end
+        end
+    end
+
+    // Check register results
+    if (dut.u_regfile.words[1] !== 32'd5) begin
+        $display("[FAIL] x1 incorrect");
+        errors = errors + 1;
+    end
+
+    if (dut.u_regfile.words[2] !== 32'd3) begin
+        $display("[FAIL] x2 incorrect");
+        errors = errors + 1;
+    end
+
+    if (dut.u_regfile.words[3] !== 32'd8) begin
+        $display("[FAIL] x3 incorrect");
+        errors = errors + 1;
+    end
+
+    if (dut.u_regfile.words[4] !== 32'd8) begin
+        $display("[FAIL] x4 incorrect");
+        errors = errors + 1;
+    end
+
+    if (dut.u_regfile.words[6] !== 32'd1) begin
+        $display("[FAIL] x6 incorrect");
+        errors = errors + 1;
+    end
+
+    // Check memory store
+    if (dut.u_dmem.words[0] !== 32'd8) begin
+        $display("[FAIL] Memory store incorrect");
+        errors = errors + 1;
     end
 
 
@@ -43,6 +89,16 @@ initial begin
             dut.u_regfile.words[2],dut.u_regfile.words[3],dut.u_regfile.words[4],dut.u_regfile.words[5]
             ,dut.u_regfile.words[6], dut.u_regfile.words[7]
              );
+             
+    if (errors == 0) begin
+    $display("----------------------------------");
+    $display("[TEST PASSED] All CPU tests passed!");
+    $display("----------------------------------");
+    end else begin
+        $display("----------------------------------");
+        $display("[TEST FAILED] Errors = %0d", errors);
+        $display("----------------------------------");
+end
 
     $finish;
 end
